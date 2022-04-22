@@ -1,12 +1,12 @@
-BOARD ?= icebreaker
-CROSS ?= riscv-none-embed-
+BOARD ?= bitsy-v1
+CROSS ?= riscv-sifive-elf-
 CC = $(CROSS)gcc
 OBJCOPY = $(CROSS)objcopy
 ICEPROG = iceprog
 DFU_UTIL = dfu-util
 
 BOARD_DEFINE=BOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
-CFLAGS=-Wall -Wextra -Wno-unused-parameter -Os -march=rv32i -mabi=ilp32 -ffreestanding -flto -nostartfiles -fomit-frame-pointer -Wl,--gc-section --specs=nano.specs -D$(BOARD_DEFINE) -I.
+CFLAGS=-Wall -Wextra -Wno-unused-parameter -Os -march=rv32i -mabi=ilp32 -ffreestanding -flto -nostartfiles -fomit-frame-pointer -Wl,--gc-section -D$(BOARD_DEFINE) -I.
 
 
 # Common / Shared

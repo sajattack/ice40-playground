@@ -60,7 +60,6 @@ static const struct {
 		struct usb_ac_as_fmt_type1_desc__3 fmt;
 		struct usb_cc_ep_desc ep_data;
 		struct usb_ac_as_ep_general_desc ep_gen;
-		struct usb_cc_ep_desc ep_sync;
 	} __attribute__ ((packed)) audio_stream;
 
 	/* MIDI Streaming Interface */
@@ -180,7 +179,7 @@ static const struct {
 			.bDescriptorType	= USB_DT_INTF,
 			.bInterfaceNumber	= 2,
 			.bAlternateSetting	= 1,
-			.bNumEndpoints		= 2,
+			.bNumEndpoints		= 1,
 			.bInterfaceClass	= 0x01,
 			.bInterfaceSubClass	= USB_AC_SCLS_AUDIOSTREAMING,
 			.bInterfaceProtocol	= 0x00,
@@ -210,7 +209,7 @@ static const struct {
 		.ep_data = {
 			.bLength		= sizeof(struct usb_cc_ep_desc),
 			.bDescriptorType	= USB_DT_EP,
-			.bEndpointAddress	= 0x01,		/* 1 OUT */
+			.bEndpointAddress	= 0x81,		/* 1 IN */
 			.bmAttributes		= 0x05,		/* Data, Async, Isoc */
 			.wMaxPacketSize		= 288,
 			.bInterval		= 1,
@@ -224,16 +223,6 @@ static const struct {
 			.bmAttributes		= 0x00,
 			.bLockDelayUnits	= 0,
 			.wLockDelay		= 0,
-		},
-		.ep_sync = {
-			.bLength		= sizeof(struct usb_cc_ep_desc),
-			.bDescriptorType	= USB_DT_EP,
-			.bEndpointAddress	= 0x81,		/* 1 IN */
-			.bmAttributes		= 0x11,		/* Feedback, Isoc */
-			.wMaxPacketSize		= 8,
-			.bInterval		= 1,
-			.bRefresh		= 1,
-			.bSynchAddress		= 0,
 		},
 	},
 	.midi_stream = {

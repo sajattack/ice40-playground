@@ -267,14 +267,16 @@ pcm_usb_flow_start(void)
 	g_pcm.bdi = 0;
 
 	/* EP 1 OUT: Type=Isochronous, dual buffered */
-	usb_ep_regs[1].out.status = USB_EP_TYPE_ISOC | USB_EP_BD_DUAL;
+	usb_ep_regs[1].in.status = USB_EP_TYPE_ISOC | USB_EP_BD_DUAL;
 
 	/* EP1 OUT: Queue two buffers */
-	usb_ep_regs[1].out.bd[0].ptr = 1024;
-	usb_ep_regs[1].out.bd[0].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(288);
+	usb_ep_regs[1].in.bd[0].ptr = 1024;
+	//usb_ep_regs[1].in.bd[0].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(288);
+	usb_ep_regs[1].in.bd[0].csr = 0;
 
-	usb_ep_regs[1].out.bd[1].ptr = 1024 + 288;
-	usb_ep_regs[1].out.bd[1].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(288);
+	usb_ep_regs[1].in.bd[1].ptr = 1024 + 288;
+	//usb_ep_regs[1].in.bd[1].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(288);
+	usb_ep_regs[1].in.bd[1].csr = 0;
 
 	/* EP1 IN: Type=Isochronous, single buffered */
 	usb_ep_regs[1].in.status = USB_EP_TYPE_ISOC;
@@ -286,7 +288,7 @@ static void
 pcm_usb_flow_stop(void)
 {
 	/* EP 1 OUT: Disable */
-	usb_ep_regs[1].out.status = 0;
+	usb_ep_regs[1].in.status = 0;
 
 	/* EP 1 IN: Disable */
 	usb_ep_regs[1].in.status = 0;
@@ -309,49 +311,49 @@ pcm_usb_set_active(bool active)
 		pcm_usb_flow_stop();
 }
 
-static void
+static uint32_t sine[48] = {
+    0x8000,0x90b5,0xa120,0xb0fb,0xbfff,0xcdeb,0xda82,0xe58c,
+    0xeed9,0xf641,0xfba2,0xfee7,0xffff,0xfee7,0xfba2,0xf641,
+    0xeed9,0xe58c,0xda82,0xcdeb,0xbfff,0xb0fb,0xa120,0x90b5,
+    0x8000,0x6f4a,0x5edf,0x4f04,0x4000,0x3214,0x257d,0x1a73,
+    0x1126,0x9be,0x45d,0x118,0x0,0x118,0x45d,0x9be,
+    0x1126,0x1a73,0x257d,0x3214,0x4000,0x4f04,0x5edf,0x6f4a
+};
+
 pcm_poll(void)
 {
-	/* Check if enough space in FIFO */
-	if (pcm_level() >= 440)
-		return;
 
-	/* EP BD Status */
-	uint32_t ptr = usb_ep_regs[1].out.bd[g_pcm.bdi].ptr;
-	uint32_t csr = usb_ep_regs[1].out.bd[g_pcm.bdi].csr;
+    /* EP BD Status */
+    uint32_t ptr = usb_ep_regs[1].in.bd[g_pcm.bdi].ptr;
+    uint32_t csr = usb_ep_regs[1].in.bd[g_pcm.bdi].csr;
+    /* Fill BDs */
+    while ((csr & USB_BD_STATE_MSK) != USB_BD_STATE_RDY_DATA)
+    {
+        int len = 48;
 
-	/* Check if we have a USB packet */
-	if ((csr & USB_BD_STATE_MSK) == USB_BD_STATE_RDY_DATA)
-		return;
+        /* Check if we have enough for a packet */
+        //if (pcm_level() >= 48)
+        //    return;
+ 
+        volatile uint32_t __attribute__((aligned(4))) *dst_u32 = (volatile uint32_t *)((USB_DATA_BASE) + ptr);
+ 
+        /*len = pcm_level();*/
+        /*if (len > 72)*/
+            /*len = 72;*/
+ 
+        for (int i=0; i<len; i++)
+            //*dst_u32++ = 0x5555AAAA; //pcm_regs->fifo;
+            *dst_u32++ = sine[i] << 16 | sine[i];
+ 
+        /* Next transfer */
+        usb_ep_regs[1].in.bd[g_pcm.bdi].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(len*4);
+        g_pcm.bdi ^= 1;
 
-	/* Valid data ? */
-	if ((csr & USB_BD_STATE_MSK) == USB_BD_STATE_DONE_OK)
-	{
-		static uint32_t lt;
-		uint32_t ct;
-
-		volatile uint32_t __attribute__((aligned(4))) *src_u32 = (volatile uint32_t *)((USB_DATA_BASE) + ptr);
-		int len = (csr & USB_BD_LEN_MSK) - 2; /* Reported length includes CRC */
-
-		for (int i=0; i<len; i+=4)
-			pcm_regs->fifo = *src_u32++;
-
-		ct = usb_get_tick();
-		if ((ct-lt) > 1)
-			printf("%d %d %d %d\n", len, pcm_level(), ct-lt, ct);
-		lt = ct;
-
-		/* If we have enough in the FIFO, enable core */
-		if ((pcm_level() > 200) && !(pcm_regs->csr & 1))
-			pcm_regs->csr = 1;
-	}
-
-	/* Next transfer */
-	usb_ep_regs[1].out.bd[g_pcm.bdi].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(288);
-	g_pcm.bdi ^= 1;
+        ptr = usb_ep_regs[1].in.bd[g_pcm.bdi].ptr;
+        csr = usb_ep_regs[1].in.bd[g_pcm.bdi].csr;
+    }
+ 
 }
-
-
 // PCM Audio USB control
 // ---------------------------------------------------------------------------
 

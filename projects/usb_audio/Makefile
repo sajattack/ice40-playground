@@ -27,7 +27,7 @@ PROJ_TOP_SRC := rtl/top.v
 PROJ_TOP_MOD := top
 
 # Target config
-BOARD ?= icebreaker
+BOARD ?= bitsy-v1
 
 H = \#
 DEVICE  := $(shell awk '/^$(H)$(H) dev:/{print $$3; exit 1}' data/top-$(BOARD).pcf && echo up5k)

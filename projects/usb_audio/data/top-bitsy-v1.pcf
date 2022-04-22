@@ -39,8 +39,8 @@ set_io -nowarn audio[1] 10
 #set_io -nowarn audio[1] 46
 
   # tnt's prototype
-set_io -nowarn audio[0] 43
-set_io -nowarn audio[1] 36
+#set_io -nowarn audio[0] 43
+#set_io -nowarn audio[1] 36
 
 # MIDI
   # PMOD 1
