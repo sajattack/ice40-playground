@@ -29,7 +29,7 @@
 
 #include "console.h"
 #include "led.h"
-#include "mini-printf.h"
+//#include "mini-printf.h"
 #include "spi.h"
 #include <no2usb/usb.h>
 #include <no2usb/usb_ac_proto.h>
@@ -212,7 +212,7 @@ pcm_hw_update_volume(void)
 static void
 pcm_set_volume(uint8_t chan, int16_t vol_log)
 {
-    printf("Volume set %d to %d\n", chan, vol_log);
+    //printf("Volume set %d to %d\n", chan, vol_log);
 
     if (g_pcm.chan[chan].vol_log == vol_log)
         return;
@@ -697,12 +697,12 @@ audio_poll(void)
     pcm_poll();
 }
 
-void
-audio_debug_print(void)
-{
-    uint32_t csr = pcm_regs->csr;
+/*void*/
+/*audio_debug_print(void)*/
+/*{*/
+    /*uint32_t csr = pcm_regs->csr;*/
 
-    printf("Audio PCM tick       : %04x\n", csr >> 16);
-    printf("Audio PCM FIFO level : %d\n", (csr >> 4) & 0xfff);
-    printf("Audio PCM State      : %d\n", csr & 3);
-}
+    /*printf("Audio PCM tick       : %04x\n", csr >> 16);*/
+    /*printf("Audio PCM FIFO level : %d\n", (csr >> 4) & 0xfff);*/
+    /*printf("Audio PCM State      : %d\n", csr & 3);*/
+/*}*/
