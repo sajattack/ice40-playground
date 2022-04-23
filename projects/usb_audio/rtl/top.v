@@ -35,12 +35,6 @@ module top (
     // LED
     output wire [2:0] rgb,
 
-    // Audio output
-    //output wire [1:0] audio,
-
-    input  wire midi_rx,
-    output wire midi_tx,
-
     // Clock
     input  wire clk_in
 );
@@ -222,21 +216,8 @@ module top (
     // Midi [7]
     //---------
 
-    uart_wb #(
-        .DIV_WIDTH(12),
-        .DW(WB_DW)
-    ) midi_I (
-        .uart_tx  (midi_tx),
-        .uart_rx  (midi_rx),
-        .wb_addr  (wb_addr[1:0]),
-        .wb_rdata (wb_rdata[7]),
-        .wb_we    (wb_we),
-        .wb_wdata (wb_wdata),
-        .wb_cyc   (wb_cyc[7]),
-        .wb_ack   (wb_ack[7]),
-        .clk      (clk_24m),
-        .rst      (rst)
-    );
+    assign wb_rdata[7] = 1'b0;
+    assign wb_ack[7] = 1'b0;
 
 
     // Warm Boot

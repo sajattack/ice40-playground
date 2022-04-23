@@ -31,8 +31,6 @@
 usb_ac_ac_hdr_desc_def(1);
 usb_ac_ac_feature_desc_def(6);
 usb_ac_as_fmt_type1_desc_def(3);
-usb_ac_ms_ep_general_desc_def(1);
-usb_ac_ms_out_jack_desc_def(1);
 
 static const struct {
     /* Configuration */
@@ -62,22 +60,12 @@ static const struct {
         struct usb_ac_as_ep_general_desc ep_gen;
     } __attribute__ ((packed)) audio_stream;
 
-    /* MIDI Streaming Interface */
-    struct {
-        struct usb_intf_desc intf;
-        struct usb_ac_ms_hdr_desc hdr;
-        struct usb_ac_ms_in_jack_desc input;
-        struct usb_ac_ms_out_jack_desc__1 output;
-        struct usb_cc_ep_desc ep_data;
-        struct usb_ac_ms_ep_general_desc__1 ep_gen;
-    } __attribute__ ((packed)) midi_stream;
-
 } __attribute__ ((packed)) _app_conf_desc = {
     .conf = {
         .bLength                = sizeof(struct usb_conf_desc),
         .bDescriptorType        = USB_DT_CONF,
         .wTotalLength           = sizeof(_app_conf_desc),
-        .bNumInterfaces         = 4,
+        .bNumInterfaces         = 3,
         .bConfigurationValue    = 1,
         .iConfiguration         = 4,
         .bmAttributes           = 0x80,
@@ -223,66 +211,6 @@ static const struct {
             .bmAttributes       = 0x00,
             .bLockDelayUnits    = 0,
             .wLockDelay     = 0,
-        },
-    },
-    .midi_stream = {
-        .intf = {
-            .bLength        = sizeof(struct usb_intf_desc),
-            .bDescriptorType    = USB_DT_INTF,
-            .bInterfaceNumber   = 3,
-            .bAlternateSetting  = 0,
-            .bNumEndpoints      = 1,
-            .bInterfaceClass    = 0x01,
-            .bInterfaceSubClass = USB_AC_SCLS_MIDISTREAMING,
-            .bInterfaceProtocol = 0x00,
-            .iInterface     = 0,
-        },
-        .hdr = {
-            .bLength        = sizeof(struct usb_ac_ms_hdr_desc),
-            .bDescriptorType    = USB_CS_DT_INTF,
-            .bDescriptorSubtype = USB_AC_MS_IDST_HEADER,
-            .bcdADC         = 0x0100,
-            .wTotalLength       = sizeof(_app_conf_desc.midi_stream) - sizeof(struct usb_intf_desc) - sizeof(_app_conf_desc.midi_stream.ep_data) - sizeof(_app_conf_desc.midi_stream.ep_gen),
-        },
-        .input = {
-            .bLength        = sizeof(struct usb_ac_ms_in_jack_desc),
-            .bDescriptorType    = USB_CS_DT_INTF,
-            .bDescriptorSubtype = USB_AC_MS_IDST_MIDI_IN_JACK,
-            .bJackType      = USB_AC_MS_JACK_TYPE_EMBEDDED,
-            .bJackID        = 1,
-            .iJack          = 0,
-        },
-        .output = {
-            .bLength        = sizeof(struct usb_ac_ms_out_jack_desc__1),
-            .bDescriptorType    = USB_CS_DT_INTF,
-            .bDescriptorSubtype = USB_AC_MS_IDST_MIDI_OUT_JACK,
-            .bJackType      = USB_AC_MS_JACK_TYPE_EXTERNAL,
-            .bJackID        = 2,
-            .bNrInputPins       = 1,
-            .sources        = {
-                {
-                    .baSourceID = 1,
-                    .baSourcePin    = 1,
-                },
-            },
-            .iJack          = 0,
-        },
-        .ep_data = {
-            .bLength        = sizeof(struct usb_cc_ep_desc),
-            .bDescriptorType    = USB_DT_EP,
-            .bEndpointAddress   = 0x02,     /* 2 OUT */
-            .bmAttributes       = 0x02,     /* Bulk */
-            .wMaxPacketSize     = 64,
-            .bInterval      = 0,
-            .bRefresh       = 0,
-            .bSynchAddress      = 0,
-        },
-        .ep_gen = {
-            .bLength        = sizeof(struct usb_ac_ms_ep_general_desc__1),
-            .bDescriptortype    = USB_CS_DT_EP,
-            .bDescriptorSubtype = USB_AC_EDST_GENERAL,
-            .bNumEmbMIDIJack    = 1,
-            .baAssocJackID      = { 1 },
         },
     },
 };

@@ -459,91 +459,6 @@ pcm_usb_volume_res(uint16_t wValue, uint8_t *data, int *len)
     return true;
 }
 
-
-// MIDI
-// ---------------------------------------------------------------------------
-
-
- struct wb_uart {
-     uint32_t data;
-     uint32_t clkdiv;
- } __attribute__((packed,aligned(4)));
- 
- static volatile struct wb_uart * const midi_regs = (void*)(MIDI_BASE);
-
-void
-midi_usb_set_conf(void)
-{
-    /* EP 2 OUT: Type=Bulk, single buffered */
-    usb_ep_regs[2].out.status = USB_EP_TYPE_BULK;
-
-    /* Fill a buffer */
-    usb_ep_regs[2].out.bd[0].ptr = 1536;
-    usb_ep_regs[2].out.bd[0].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(64);
-}
-
-static const int
-midi_pkt[16] = {
-    -1, /* 0x0 Miscellaneous function codes. Reserved for future extensions */
-    -1, /* 0x1 Cable events. Reserved for future expansion */
-    2,  /* 0x2 Two-byte System Common messages like MTC, SongSelect, etc */
-    3,  /* 0x3 Three-byte System Common messages like SPP, etc */
-    3,  /* 0x4 SysEx starts or continues */
-    1,  /* 0x5 SysEx ends with following single byte */
-    2,  /* 0x6 SysEx ends with following two bytes */
-    3,  /* 0x7 SysEx ends with following three bytes */
-    3,  /* 0x8 Note-off */
-    3,  /* 0x9 Note-on */
-    3,  /* 0xa Poly-KeyPress */
-    3,  /* 0xb Control Change */
-    2,  /* 0xc Program Change */
-    2,  /* 0xd Channel Pressure */
-    3,  /* 0xe PitchBend Change */
-    1,  /* 0xf Single Byte */
-};
-
-static void
-midi_poll(void)
-{
-    /* EP BD Status */
-    uint32_t ptr = usb_ep_regs[2].out.bd[0].ptr;
-    uint32_t csr = usb_ep_regs[2].out.bd[0].csr;
-
-    /* Check if we have a USB packet */
-    if ((csr & USB_BD_STATE_MSK) == USB_BD_STATE_RDY_DATA)
-        return;
-
-    /* Valid data ? */
-    if ((csr & USB_BD_STATE_MSK) == USB_BD_STATE_DONE_OK)
-    {
-        uint32_t midi[64];
-        int len = (csr & USB_BD_LEN_MSK) - 2; /* Reported length includes CRC */
-
-        usb_data_read(midi, ptr, len);
-
-        for (int i=0; i<(len>>2); i++) {
-            uint32_t w = midi[i];
-            int bl = midi_pkt[w & 0xf];
-            w >>= 8;
-
-            while (bl-- > 0) {
-                midi_regs->data = (w & 0xff);
-                w >>= 8;
-            }
-        }
-    }
-
-    /* Next transfer */
-    usb_ep_regs[2].out.bd[0].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(64);
-}
- static void
- midi_init(void)
- {
-     //[> 31250 baud with 24MHz system clk <]
-     midi_regs->clkdiv = 768;
- }
-
-
 // Shared USB driver
 // ---------------------------------------------------------------------------
 
@@ -707,9 +622,6 @@ audio_set_conf(const struct usb_conf_desc *conf)
     /* Default PCM interface is inactive */
     pcm_usb_set_active(false);
 
-    /* MIDI EP config */
-    midi_usb_set_conf();
-
     return USB_FND_SUCCESS;
 }
 
@@ -724,7 +636,6 @@ audio_set_intf(const struct usb_intf_desc *base, const struct usb_intf_desc *sel
     switch (base->bInterfaceSubClass)
     {
     case USB_AC_SCLS_AUDIOCONTROL:
-    case USB_AC_SCLS_MIDISTREAMING:
         return USB_FND_SUCCESS;
 
     case USB_AC_SCLS_AUDIOSTREAMING:
@@ -747,7 +658,6 @@ audio_get_intf(const struct usb_intf_desc *base, uint8_t *alt)
     switch (base->bInterfaceSubClass)
     {
     case USB_AC_SCLS_AUDIOCONTROL:
-    case USB_AC_SCLS_MIDISTREAMING:
         *alt = 0;
         return USB_FND_SUCCESS;
 
@@ -776,7 +686,6 @@ audio_init(void)
 {
     /* Init hardware */
     pcm_init();
-    midi_init();
 
     /* Register function driver */
     usb_register_function_driver(&_audio_drv);
@@ -786,7 +695,6 @@ void
 audio_poll(void)
 {
     pcm_poll();
-    midi_poll();
 }
 
 void
