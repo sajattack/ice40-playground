@@ -4,6 +4,8 @@ PROJ = usb_audio
 PROJ_DEPS := no2usb no2misc no2ice40
 PROJ_RTL_SRCS := $(addprefix rtl/, \
 	audio_pcm.v \
+	audio_pcm_in.v \
+	audio_pcm_in2.v \
 	dfu_helper.v \
 	picorv32.v \
 	picorv32_ice40_regs.v \
@@ -34,7 +36,7 @@ DEVICE  := $(shell awk '/^$(H)$(H) dev:/{print $$3; exit 1}' data/top-$(BOARD).p
 PACKAGE := $(shell awk '/^$(H)$(H) pkg:/{print $$3; exit 1}' data/top-$(BOARD).pcf && echo sg48)
 
 YOSYS_SYNTH_ARGS = -dffe_min_ce_use 4 -dsp
-NEXTPNR_ARGS = --pre-pack data/clocks.py --seed 2
+NEXTPNR_ARGS = --pre-pack data/clocks.py --seed 6581
 
 # Include default rules
 include ../../build/project-rules.mk

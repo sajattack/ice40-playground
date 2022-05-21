@@ -26,14 +26,14 @@ module top (
     output wire usb_pu,
 
     // Debug UART
-    //input  wire uart_rx,
-    //output wire uart_tx,
+    input  wire uart_rx,
+    output wire uart_tx,
 
     // Button
     input  wire btn,
 
     // LED
-    //output wire [2:0] rgb,
+    output wire [2:0] rgb,
 
     // Clock
     input  wire clk_in
@@ -103,24 +103,24 @@ module top (
     // UART [1]
     // ----
 
-    //uart_wb #(
-        //.DIV_WIDTH(12),
-        //.DW(WB_DW)
-    //) uart_I (
-        //.uart_tx  (uart_tx),
-        //.uart_rx  (uart_rx),
-        //.wb_addr  (wb_addr[1:0]),
-        //.wb_rdata (wb_rdata[1]),
-        //.wb_we    (wb_we),
-        //.wb_wdata (wb_wdata),
-        //.wb_cyc   (wb_cyc[1]),
-        //.wb_ack   (wb_ack[1]),
-        //.clk      (clk_24m),
-        //.rst      (rst)
-    //);
+    uart_wb #(
+        .DIV_WIDTH(12),
+        .DW(WB_DW)
+    ) uart_I (
+        .uart_tx  (uart_tx),
+        .uart_rx  (uart_rx),
+        .wb_addr  (wb_addr[1:0]),
+        .wb_rdata (wb_rdata[1]),
+        .wb_we    (wb_we),
+        .wb_wdata (wb_wdata),
+        .wb_cyc   (wb_cyc[1]),
+        .wb_ack   (wb_ack[1]),
+        .clk      (clk_24m),
+        .rst      (rst)
+    );
 
-    assign wb_rdata[1] = 1'b0;
-    assign wb_ack[1] = 1'b0;
+    //assign wb_rdata[1] = 1'b0;
+    //assign wb_ack[1] = 1'b0;
 
     // SPI [2]
     // ---
@@ -155,25 +155,26 @@ module top (
 
     // RGB LEDs [3]
     // --------
+    //assign rgb = 3'd0;
 
-    //ice40_rgb_wb #(
-        //.CURRENT_MODE("0b1"),
-        //.RGB0_CURRENT("0b000001"),
-        //.RGB1_CURRENT("0b000001"),
-        //.RGB2_CURRENT("0b000001")
-    //) rgb_I (
-        //.pad_rgb    (rgb),
-        //.wb_addr    (wb_addr[4:0]),
-        //.wb_rdata   (wb_rdata[3]),
-        //.wb_wdata   (wb_wdata),
-        //.wb_we      (wb_we),
-        //.wb_cyc     (wb_cyc[3]),
-        //.wb_ack     (wb_ack[3]),
-        //.clk        (clk_24m),
-        //.rst        (rst)
-    //);
-    assign wb_rdata[3] = 1'b0;
-    assign wb_ack[3] = 1'b0;
+    ice40_rgb_wb #(
+        .CURRENT_MODE("0b1"),
+        .RGB0_CURRENT("0b000001"),
+        .RGB1_CURRENT("0b000001"),
+        .RGB2_CURRENT("0b000001")
+    ) rgb_I (
+        .pad_rgb    (rgb),
+        .wb_addr    (wb_addr[4:0]),
+        .wb_rdata   (wb_rdata[3]),
+        .wb_wdata   (wb_wdata),
+        .wb_we      (wb_we),
+        .wb_cyc     (wb_cyc[3]),
+        .wb_ack     (wb_ack[3]),
+        .clk        (clk_24m),
+        .rst        (rst)
+    );
+    //assign wb_rdata[3] = 1'b0;
+    //assign wb_ack[3] = 1'b0;
 
 
     // USB [4 & 5]
@@ -203,7 +204,7 @@ module top (
     // Audio PCM [6]
     // ---------
 
-    audio_pcm pcm_I (
+    audio_pcm_in2 pcm_I (
         //.audio    (audio),
         .wb_addr  (wb_addr[1:0]),
         .wb_rdata (wb_rdata[6]),

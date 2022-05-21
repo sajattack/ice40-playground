@@ -29,7 +29,7 @@
 
 #include "console.h"
 #include "led.h"
-//#include "mini-printf.h"
+#include "mini-printf.h"
 #include "spi.h"
 #include <no2usb/usb.h>
 #include <no2usb/usb_ac_proto.h>
@@ -40,198 +40,26 @@
 #include "config.h"
 
 
-// Volume helpers
-// ---------------------------------------------------------------------------
-
-/* [round(256*(math.pow(2,i/256.0)-1)) for i in range(256)] */
-static const uint8_t vol_log2lin_lut[] = {
-    0x00, 0x01, 0x01, 0x02, 0x03, 0x03, 0x04, 0x05,
-    0x06, 0x06, 0x07, 0x08, 0x08, 0x09, 0x0a, 0x0b,
-    0x0b, 0x0c, 0x0d, 0x0e, 0x0e, 0x0f, 0x10, 0x10,
-    0x11, 0x12, 0x13, 0x13, 0x14, 0x15, 0x16, 0x16,
-    0x17, 0x18, 0x19, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-    0x1d, 0x1e, 0x1f, 0x20, 0x20, 0x21, 0x22, 0x23,
-    0x24, 0x24, 0x25, 0x26, 0x27, 0x28, 0x28, 0x29,
-    0x2a, 0x2b, 0x2c, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
-    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x35, 0x36,
-    0x37, 0x38, 0x39, 0x3a, 0x3a, 0x3b, 0x3c, 0x3d,
-    0x3e, 0x3f, 0x40, 0x41, 0x41, 0x42, 0x43, 0x44,
-    0x45, 0x46, 0x47, 0x48, 0x48, 0x49, 0x4a, 0x4b,
-    0x4c, 0x4d, 0x4e, 0x4f, 0x50, 0x51, 0x51, 0x52,
-    0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a,
-    0x5b, 0x5c, 0x5d, 0x5e, 0x5e, 0x5f, 0x60, 0x61,
-    0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
-    0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71,
-    0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79,
-    0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0x80, 0x81,
-    0x82, 0x83, 0x84, 0x85, 0x87, 0x88, 0x89, 0x8a,
-    0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91, 0x92,
-    0x93, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b,
-    0x9c, 0x9d, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4,
-    0xa5, 0xa6, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad,
-    0xaf, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb6, 0xb7,
-    0xb8, 0xb9, 0xba, 0xbc, 0xbd, 0xbe, 0xbf, 0xc0,
-    0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc8, 0xc9, 0xca,
-    0xcb, 0xcd, 0xce, 0xcf, 0xd0, 0xd2, 0xd3, 0xd4,
-    0xd6, 0xd7, 0xd8, 0xd9, 0xdb, 0xdc, 0xdd, 0xde,
-    0xe0, 0xe1, 0xe2, 0xe4, 0xe5, 0xe6, 0xe8, 0xe9,
-    0xea, 0xec, 0xed, 0xee, 0xf0, 0xf1, 0xf2, 0xf4,
-    0xf5, 0xf6, 0xf8, 0xf9, 0xfa, 0xfc, 0xfd, 0xff,
-};
-
-/*  [round(math.log2(1.0 + x / 256.0) * 256) for x in range(256)] */
-static const uint8_t vol_lin2log_lut[] = {
-    0x00, 0x01, 0x03, 0x04, 0x06, 0x07, 0x09, 0x0a,
-    0x0b, 0x0d, 0x0e, 0x10, 0x11, 0x12, 0x14, 0x15,
-    0x16, 0x18, 0x19, 0x1a, 0x1c, 0x1d, 0x1e, 0x20,
-    0x21, 0x22, 0x24, 0x25, 0x26, 0x28, 0x29, 0x2a,
-    0x2c, 0x2d, 0x2e, 0x2f, 0x31, 0x32, 0x33, 0x34,
-    0x36, 0x37, 0x38, 0x39, 0x3b, 0x3c, 0x3d, 0x3e,
-    0x3f, 0x41, 0x42, 0x43, 0x44, 0x45, 0x47, 0x48,
-    0x49, 0x4a, 0x4b, 0x4d, 0x4e, 0x4f, 0x50, 0x51,
-    0x52, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a,
-    0x5c, 0x5d, 0x5e, 0x5f, 0x60, 0x61, 0x62, 0x63,
-    0x64, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c,
-    0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x74, 0x75,
-    0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d,
-    0x7e, 0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85,
-    0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d,
-    0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95,
-    0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9b, 0x9c,
-    0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4,
-    0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xa9, 0xaa, 0xab,
-    0xac, 0xad, 0xae, 0xaf, 0xb0, 0xb1, 0xb2, 0xb2,
-    0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xb9,
-    0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf, 0xc0, 0xc0,
-    0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc6, 0xc7,
-    0xc8, 0xc9, 0xca, 0xcb, 0xcb, 0xcc, 0xcd, 0xce,
-    0xcf, 0xd0, 0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd4,
-    0xd5, 0xd6, 0xd7, 0xd8, 0xd8, 0xd9, 0xda, 0xdb,
-    0xdc, 0xdc, 0xdd, 0xde, 0xdf, 0xe0, 0xe0, 0xe1,
-    0xe2, 0xe3, 0xe4, 0xe4, 0xe5, 0xe6, 0xe7, 0xe7,
-    0xe8, 0xe9, 0xea, 0xea, 0xeb, 0xec, 0xed, 0xee,
-    0xee, 0xef, 0xf0, 0xf1, 0xf1, 0xf2, 0xf3, 0xf4,
-    0xf4, 0xf5, 0xf6, 0xf7, 0xf7, 0xf8, 0xf9, 0xf9,
-    0xfa, 0xfb, 0xfc, 0xfc, 0xfd, 0xfe, 0xff, 0xff,
-};
-
-
-#define VOL_INVALID (-32768)
-
-/* 16384 * math.pow(10, x/(20*256)) */
-static int16_t
-vol_log2lin(int16_t log)
-{
-    uint16_t lin;
-    int s = 0;
-
-    /* Special cases */
-    if (log == VOL_INVALID) /* Special value */
-        return 0x0000;
-
-    if (log >= 1541)    /* Max is ~6 dB */
-        return 0x7fff;
-
-    /* Integer part */
-    while (log < 0) {
-        log += 1541;
-        s += 1;
-    }
-
-    /* LUT */
-    lin = vol_log2lin_lut[(log * 680) >> 12];
-
-    /* Scaling */
-    lin = (lin << 6) | (lin >> 2) | 0x4000;
-    lin >>= s;
-
-    return lin;
-}
-
-/* 20 * 256 * math.log10(lin / 16384) */
-static int16_t
-vol_lin2log(int16_t lin)
-{
-    int32_t l = 0;
-
-    /* Special cases */
-    if (lin <= 0)
-        return VOL_INVALID;
-
-    /* Integer part */
-    while (lin < 0x4000) {
-        lin <<= 1;
-        l = l - 256;
-    }
-
-    /* LUT correct */
-    l += vol_lin2log_lut[(lin >> 6) & 0xff];
-
-    /* Final scaling */
-    l = (l * 1541) >> 8;
-
-    return (int16_t) l;
-}
-
-
 // PCM Audio
 // ---------------------------------------------------------------------------
 
+static struct {
+    bool active;
+    uint8_t bdi;
+} g_pcm;
+
 struct wb_audio_pcm {
     uint32_t csr;
-    uint32_t volume;
     uint32_t fifo;
 } __attribute__((packed,aligned(4)));
 
 static volatile struct wb_audio_pcm * const pcm_regs = (void*)(AUDIO_PCM_BASE);
-
-static struct {
-    bool active;
-    bool mute_all;
-
-    struct {
-        bool     mute;
-        int16_t  vol_log;
-        uint16_t vol_lin;
-    } chan[2];
-
-    uint8_t bdi;
-} g_pcm;
-
-
-static void
-pcm_hw_update_volume(void)
-{
-    pcm_regs->volume =
-        (((!g_pcm.mute_all && !g_pcm.chan[1].mute) ?
-            g_pcm.chan[1].vol_lin : 0) << 16) |
-        (((!g_pcm.mute_all && !g_pcm.chan[0].mute) ?
-            g_pcm.chan[0].vol_lin : 0));
-}
-
-static void
-pcm_set_volume(uint8_t chan, int16_t vol_log)
-{
-    //printf("Volume set %d to %d\n", chan, vol_log);
-
-    if (g_pcm.chan[chan].vol_log == vol_log)
-        return;
-
-    g_pcm.chan[chan].vol_lin = vol_log2lin(vol_log);
-    g_pcm.chan[chan].vol_log = vol_lin2log(g_pcm.chan[chan].vol_lin);
-
-    pcm_hw_update_volume();
-}
 
 static void
 pcm_init(void)
 {
     /* Local state */
     memset(&g_pcm, 0x00, sizeof(g_pcm));
-
-    /* Audio enabled at -6 dB by default */
-    pcm_set_volume(0, -6*256);
-    pcm_set_volume(1, -6*256);
 }
 
 static int
@@ -258,8 +86,6 @@ pcm_usb_fill_feedback_ep(void)
 #endif
 }
 
-
-
 static void
 pcm_usb_flow_start(void)
 {
@@ -282,6 +108,7 @@ pcm_usb_flow_start(void)
     //usb_ep_regs[1].in.status = USB_EP_TYPE_ISOC;
 
     pcm_usb_fill_feedback_ep();
+    pcm_regs->csr = 1;
 }
 
 static void
@@ -311,14 +138,14 @@ pcm_usb_set_active(bool active)
         pcm_usb_flow_stop();
 }
 
-static uint32_t sine[48] = {
+/*static uint16_t sine[48] = {
     0x8000,0x90b5,0xa120,0xb0fb,0xbfff,0xcdeb,0xda82,0xe58c,
     0xeed9,0xf641,0xfba2,0xfee7,0xffff,0xfee7,0xfba2,0xf641,
     0xeed9,0xe58c,0xda82,0xcdeb,0xbfff,0xb0fb,0xa120,0x90b5,
     0x8000,0x6f4a,0x5edf,0x4f04,0x4000,0x3214,0x257d,0x1a73,
     0x1126,0x9be,0x45d,0x118,0x0,0x118,0x45d,0x9be,
     0x1126,0x1a73,0x257d,0x3214,0x4000,0x4f04,0x5edf,0x6f4a
-};
+};*/
 
 static void pcm_poll(void)
 {
@@ -329,21 +156,23 @@ static void pcm_poll(void)
     /* Fill BDs */
     while ((csr & USB_BD_STATE_MSK) != USB_BD_STATE_RDY_DATA)
     {
-        int len = 48;
+        //int len = 48;
+        int len;
 
         /* Check if we have enough for a packet */
-        //if (pcm_level() >= 48)
-        //    return;
+        if (pcm_level() >= 48)
+            return;
  
         volatile uint32_t __attribute__((aligned(4))) *dst_u32 = (volatile uint32_t *)((USB_DATA_BASE) + ptr);
  
-        /*len = pcm_level();*/
-        /*if (len > 72)*/
-            /*len = 72;*/
+        len = pcm_level();
+        if (len > 72)
+            len = 72;
  
         for (int i=0; i<len; i++)
             //*dst_u32++ = 0x5555AAAA; //pcm_regs->fifo;
-            *dst_u32++ = sine[i] << 16 | sine[i];
+            //*dst_u16++ = sine[i];
+            *dst_u32++ = pcm_regs->fifo;
  
         /* Next transfer */
         usb_ep_regs[1].in.bd[g_pcm.bdi].csr = USB_BD_STATE_RDY_DATA | USB_BD_LEN(len*4);
@@ -354,267 +183,9 @@ static void pcm_poll(void)
     }
  
 }
-// PCM Audio USB control
-// ---------------------------------------------------------------------------
-
-static bool
-pcm_usb_mute_set(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if (chan >= 3)
-        return false;
-
-    if (chan == 0) {
-        g_pcm.mute_all = data[0];
-        pcm_hw_update_volume();
-    } else {
-        g_pcm.chan[chan-1].mute =data[0];
-        pcm_hw_update_volume();
-    }
-
-    return true;
-}
-
-static bool
-pcm_usb_mute_get(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if (chan >= 3)
-        return false;
-
-    if (chan == 0) {
-        data[0] = g_pcm.mute_all;
-    } else {
-        data[0] = g_pcm.chan[chan-1].mute;
-    }
-
-    return true;
-}
-
-
-static bool
-pcm_usb_volume_set(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if ((chan == 0) || (chan >= 3))
-        return false;
-
-    pcm_set_volume(chan, *((int16_t*)data));
-
-    return true;
-}
-
-static bool
-pcm_usb_volume_get(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if ((chan == 0) || (chan >= 3))
-        return false;
-
-    *((int16_t*)data) = g_pcm.chan[chan-1].vol_log;
-
-    return true;
-}
-
-static bool
-pcm_usb_volume_min(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if ((chan == 0) || (chan >= 3))
-        return false;
-
-    *((int16_t*)data) = (-80 * 256);
-
-    return true;
-}
-
-static bool
-pcm_usb_volume_max(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if ((chan == 0) || (chan >= 3))
-        return false;
-
-    *((int16_t*)data) = (5 * 256);
-
-    return true;
-}
-
-static bool
-pcm_usb_volume_res(uint16_t wValue, uint8_t *data, int *len)
-{
-    uint8_t chan = wValue & 0xff;
-
-    if ((chan == 0) || (chan >= 3))
-        return false;
-
-    *((int16_t*)data) = (256 / 2);
-
-    return true;
-}
 
 // Shared USB driver
 // ---------------------------------------------------------------------------
-
-/* Control handler structs */
-
-typedef bool (*usb_audio_control_fn)(uint16_t wValue, uint8_t *data, int *len);
-
-struct usb_audio_control_handler {
-    int len;
-    usb_audio_control_fn set_cur;
-    usb_audio_control_fn get_cur;
-    usb_audio_control_fn get_min;
-    usb_audio_control_fn get_max;
-    usb_audio_control_fn get_res;
-};
-
-struct usb_audio_req_handler {
-    uint8_t rcpt;       /* USB_REQ_RCPT_INTF or USB_REQ_RCPT_EP */
-    uint8_t idx;        /* Interface or EP index */
-    uint8_t entity_id;
-    uint16_t val_match;
-    uint16_t val_mask;
-    const struct usb_audio_control_handler *h;
-};
-
-
-/* Control handlers for this implementation */
-
-static const struct usb_audio_control_handler _uac_mute = { /* USB_AC_FU_CONTROL_MUTE */
-    .len        = 1,
-    .set_cur    = pcm_usb_mute_set,
-    .get_cur    = pcm_usb_mute_get,
-};
-
-static const struct usb_audio_control_handler _uac_volume = {   /* USB_AC_FU_CONTROL_VOLUME */
-    .len        = 2,
-    .set_cur    = pcm_usb_volume_set,
-    .get_cur    = pcm_usb_volume_get,
-    .get_min    = pcm_usb_volume_min,
-    .get_max    = pcm_usb_volume_max,
-    .get_res    = pcm_usb_volume_res,
-};
-
-#define INTF_AUDIO_CONTROL  1
-#define UNIT_FEATURE        2
-
-static const struct usb_audio_req_handler _uac_handlers[] = {
-    { USB_REQ_RCPT_INTF, INTF_AUDIO_CONTROL, UNIT_FEATURE, (USB_AC_FU_CONTROL_MUTE   << 8), 0xff00, &_uac_mute   },
-    { USB_REQ_RCPT_INTF, INTF_AUDIO_CONTROL, UNIT_FEATURE, (USB_AC_FU_CONTROL_VOLUME << 8), 0xff00, &_uac_volume },
-    { 0 }
-};
-
-
-/* USB driver implemntation (including control handler dispatch */
-
-static struct {
-    struct usb_ctrl_req *req;
-    usb_audio_control_fn fn;
-} g_cb_ctx;
-
-static bool
-audio_ctrl_req_cb(struct usb_xfer *xfer)
-{
-    struct usb_ctrl_req *req = g_cb_ctx.req;
-    usb_audio_control_fn fn = g_cb_ctx.fn;
-    return fn(req->wValue, xfer->data, &xfer->len);
-}
-
-static enum usb_fnd_resp
-audio_ctrl_req(struct usb_ctrl_req *req, struct usb_xfer *xfer)
-{
-    const struct usb_audio_req_handler *rh;
-
-    /* Check it's a class request to an interface */
-    if (USB_REQ_TYPE(req) != USB_REQ_TYPE_CLASS)
-        return USB_FND_CONTINUE;
-    
-    /* Check R/W consitency */
-        /* The control request ID mirrors the read flag in the MSB */
-    if ((req->bmRequestType ^ req->bRequest) & 0x80)
-        return USB_FND_ERROR;
-
-    /* Find a matching handler */
-    for (rh=&_uac_handlers[0]; rh->rcpt; rh++)
-    {
-        usb_audio_control_fn fn = NULL;
-
-        /* Check recipient type and index */
-        if (USB_REQ_RCPT(req) != rh->rcpt)
-            continue;
-
-        if ((req->wIndex & 0xff) != rh->idx)
-            continue;
-
-        /* Check Entity ID */
-        if ((req->wIndex >> 8) != rh->entity_id)
-            continue;
-
-        /* Check control */
-        if ((req->wValue & rh->val_mask) != rh->val_match)
-            continue;
-
-        /* We have a match, first check it's not a NOP and check length */
-        if (!rh->h)
-            return USB_FND_ERROR;
-
-        if ((rh->h->len != -1) && (rh->h->len != req->wLength))
-            return USB_FND_ERROR;
-
-        /* Then grab appropriate function */
-        switch (req->bRequest)
-        {
-        case USB_REQ_AC_SET_CUR:
-            fn = rh->h->set_cur;
-            break;
-
-        case USB_REQ_AC_GET_CUR:
-            fn = rh->h->get_cur;
-            break;
-
-        case USB_REQ_AC_GET_MIN:
-            fn = rh->h->get_min;
-            break;
-
-        case USB_REQ_AC_GET_MAX:
-            fn = rh->h->get_max;
-            break;
-        
-        case USB_REQ_AC_GET_RES:
-            fn = rh->h->get_res;
-            break;
-
-        default:
-            fn = NULL;
-        }
-
-        if (!fn)
-            return USB_FND_ERROR;
-
-        /* And try to call it */
-        if (USB_REQ_IS_READ(req)) {
-            /* Request is a read, we can call handler immediately */
-            xfer->len = req->wLength;
-            return fn(req->wValue, xfer->data, &xfer->len) ? USB_FND_SUCCESS : USB_FND_ERROR;
-        } else {
-            /* Request is a write, we need to hold off until end of data phase */
-            g_cb_ctx.req = req;
-            g_cb_ctx.fn = fn;
-            xfer->len = req->wLength;
-            xfer->cb_done = audio_ctrl_req_cb;
-            return USB_FND_SUCCESS;
-        }
-    }
-
-    return USB_FND_ERROR;
-}
 
 static enum usb_fnd_resp
 audio_set_conf(const struct usb_conf_desc *conf)
@@ -643,6 +214,7 @@ audio_set_intf(const struct usb_intf_desc *base, const struct usb_intf_desc *sel
         return USB_FND_SUCCESS;
 
     default:
+        //printf("%d\n", base->bInterfaceSubClass);
         return USB_FND_ERROR;
     }
 }
@@ -671,7 +243,6 @@ audio_get_intf(const struct usb_intf_desc *base, uint8_t *alt)
 }
 
 static struct usb_fn_drv _audio_drv = {
-    .ctrl_req = audio_ctrl_req,
     .set_conf = audio_set_conf,
     .set_intf = audio_set_intf,
     .get_intf = audio_get_intf,
@@ -685,8 +256,9 @@ void
 audio_init(void)
 {
     /* Init hardware */
+    printf("Starting audio init\n");
     pcm_init();
-
+    printf("PCM inited\n");
     /* Register function driver */
     usb_register_function_driver(&_audio_drv);
 }
@@ -697,12 +269,16 @@ audio_poll(void)
     pcm_poll();
 }
 
-/*void*/
-/*audio_debug_print(void)*/
-/*{*/
-    /*uint32_t csr = pcm_regs->csr;*/
+void
+audio_debug_print(void)
+{
+    uint32_t csr = pcm_regs->csr;
 
-    /*printf("Audio PCM tick       : %04x\n", csr >> 16);*/
-    /*printf("Audio PCM FIFO level : %d\n", (csr >> 4) & 0xfff);*/
-    /*printf("Audio PCM State      : %d\n", csr & 3);*/
-/*}*/
+    printf("Audio PCM tick       : %04x\n", csr >> 16);
+    printf("Audio PCM FIFO level : %d\n", (csr >> 4) & 0xfff);
+    printf("Audio PCM State      : %d\n", csr & 3);
+    printf("FIFO                 : %08x\n", pcm_regs->fifo);
+    printf("Active               : %d\n", g_pcm.active);
+    printf("CSR running          : %d\n", (csr & 2) >> 1);
+    printf("CSR                  : %08x\n", pcm_regs->csr);
+}

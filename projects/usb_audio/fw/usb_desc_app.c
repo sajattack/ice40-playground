@@ -24,7 +24,6 @@
 #include <no2usb/usb_proto.h>
 #include <no2usb/usb_ac_proto.h>
 #include <no2usb/usb_cdc_proto.h>
-#include <no2usb/usb_dfu_proto.h>
 #include <no2usb/usb.h>
 
 
@@ -35,12 +34,6 @@ usb_ac_as_fmt_type1_desc_def(3);
 static const struct {
     /* Configuration */
     struct usb_conf_desc conf;
-
-    /* DFU Runtime */
-    struct {
-        struct usb_intf_desc intf;
-        struct usb_dfu_func_desc func;
-    } __attribute__ ((packed)) dfu;
 
     /* Audio Control Interface */
     struct {
@@ -65,44 +58,23 @@ static const struct {
         .bLength                = sizeof(struct usb_conf_desc),
         .bDescriptorType        = USB_DT_CONF,
         .wTotalLength           = sizeof(_app_conf_desc),
-        .bNumInterfaces         = 3,
+        .bNumInterfaces         = 2,
         .bConfigurationValue    = 1,
         .iConfiguration         = 4,
         .bmAttributes           = 0x80,
         .bMaxPower              = 0x32, /* 100 mA */
     },
-    .dfu = {
+    .audio_ctl = {
         .intf = {
             .bLength        = sizeof(struct usb_intf_desc),
             .bDescriptorType    = USB_DT_INTF,
             .bInterfaceNumber   = 0,
             .bAlternateSetting  = 0,
             .bNumEndpoints      = 0,
-            .bInterfaceClass    = USB_CLS_APP_SPECIFIC,
-            .bInterfaceSubClass = 0x01,
-            .bInterfaceProtocol = 0x01,
-            .iInterface     = 5,
-        },
-        .func = {
-            .bLength        = sizeof(struct usb_dfu_func_desc),
-            .bDescriptorType    = USB_DFU_DT_FUNC,
-            .bmAttributes       = 0x0d,
-            .wDetachTimeOut     = 0,
-            .wTransferSize      = 4096,
-            .bcdDFUVersion      = 0x0101,
-        },
-    },
-    .audio_ctl = {
-        .intf = {
-            .bLength        = sizeof(struct usb_intf_desc),
-            .bDescriptorType    = USB_DT_INTF,
-            .bInterfaceNumber   = 1,
-            .bAlternateSetting  = 0,
-            .bNumEndpoints      = 0,
             .bInterfaceClass    = 0x01,
             .bInterfaceSubClass = USB_AC_SCLS_AUDIOCONTROL,
             .bInterfaceProtocol = 0x00,
-            .iInterface     = 6,
+            .iInterface     = 0,
         },
         .hdr = {
             .bLength        = sizeof(struct usb_ac_ac_hdr_desc__1),
@@ -111,16 +83,16 @@ static const struct {
             .bcdADC         = 0x0100,
             .wTotalLength       = sizeof(_app_conf_desc.audio_ctl) - sizeof(struct usb_intf_desc),
             .bInCollection      = 1,
-            .baInterfaceNr      = { 0x02 },
+            .baInterfaceNr      = { 0x01 },
         },
         .input = {
             .bLength        = sizeof(struct usb_ac_ac_input_desc),
             .bDescriptortype    = USB_CS_DT_INTF,
             .bDescriptorSubtype = USB_AC_AC_IDST_INPUT_TERMINAL,
             .bTerminalID        = 1,
-            .wTerminalType      = 0x0101,
+            .wTerminalType      = 0x0700,
             .bAssocTerminal     = 0,
-            .bNrChannels        = 2,
+            .bNrChannels        = 1,
             .wChannelConfig     = 0x0003,
             .iChannelNames      = 7,
             .iTerminal      = 9,
@@ -139,22 +111,22 @@ static const struct {
             },
             .iFeature       = 0,
         },
-        .output = {
+       .output = {
             .bLength        = sizeof(struct usb_ac_ac_output_desc),
             .bDescriptortype    = USB_CS_DT_INTF,
             .bDescriptorSubtype = USB_AC_AC_IDST_OUTPUT_TERMINAL,
-            .bTerminalID        = 3,
-            .wTerminalType      = 0x0302,
+            .bTerminalID        = 2,
+            .wTerminalType      = 0x0101,
             .bAssocTerminal     = 0,
-            .bSourceID      = 2,
-            .iTerminal      = 10,
+            .bSourceID          = 1,
+            .iTerminal          = 10,
         },
     },
     .audio_stream = {
         .intf[0] = {
             .bLength        = sizeof(struct usb_intf_desc),
             .bDescriptorType    = USB_DT_INTF,
-            .bInterfaceNumber   = 2,
+            .bInterfaceNumber   = 1,
             .bAlternateSetting  = 0,
             .bNumEndpoints      = 0,
             .bInterfaceClass    = 0x01,
@@ -165,7 +137,7 @@ static const struct {
         .intf[1] = {
             .bLength        = sizeof(struct usb_intf_desc),
             .bDescriptorType    = USB_DT_INTF,
-            .bInterfaceNumber   = 2,
+            .bInterfaceNumber   = 1,
             .bAlternateSetting  = 1,
             .bNumEndpoints      = 1,
             .bInterfaceClass    = 0x01,
@@ -186,7 +158,7 @@ static const struct {
             .bDescriptortype    = USB_CS_DT_INTF,
             .bDescriptorSubtype = USB_AC_AS_IDST_FORMAT_TYPE,
             .bFormatType        = 1,
-            .bNrChannels        = 2,
+            .bNrChannels        = 1,
             .bSubframeSize      = 2,
             .bBitResolution     = 16,
             .bSamFreqType       = 1,
